@@ -17,6 +17,7 @@ jobs:
           node-version: 24
       - run: npm ci --no-audit --no-fund
       - run: npm run test -w frontend -- src/components/__tests__/ProjectCard.test.tsx src/components/projects/ProjectsList.test.tsx
+      - run: cd frontend && ../node_modules/.bin/eslint src/components/ProjectCard.tsx src/components/__tests__/ProjectCard.test.tsx --max-warnings=0
       - run: npm install --prefix /tmp/card-browser playwright
       - run: /tmp/card-browser/node_modules/.bin/playwright install --with-deps chromium firefox webkit
       - run: node .validation/card-checks.mjs
@@ -24,4 +25,5 @@ jobs:
         if: always()
         with:
           name: card-screenshots
+          include-hidden-files: true
           path: .validation/*.png
