@@ -73,7 +73,9 @@ for (const [name, engine] of Object.entries({chromium, firefox, webkit})) {
   const mobile = await touch.newPage(); await mobile.setContent(document);
   assert.equal(await mobile.evaluate(()=>matchMedia('(hover: hover) and (pointer: fine)').matches),false);
   const touchCard=mobile.locator('#full button'); const normal=await bg(touchCard);
-  await touchCard.tap(); await mobile.waitForTimeout(220);
+  // Mobile engines can retain native :active briefly after touchend.
+  await touchCard.tap();
+  for (let i=0; i<20 && await bg(touchCard)!==normal; i++) await mobile.waitForTimeout(100);
   assert.equal(await bg(touchCard),normal,`${name} no sticky touch hover`);
   await mobile.screenshot({path:`.validation/${name}-touch.png`,fullPage:true});
   await touch.close(); await browser.close();
