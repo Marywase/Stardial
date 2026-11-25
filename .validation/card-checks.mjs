@@ -8,29 +8,33 @@ import tailwind from "@tailwindcss/postcss";
 const { chromium, firefox, webkit } = createRequire("/tmp/card-browser/package.json")("playwright");
 
 const root = process.cwd();
-await build({
+const bundle = await build({
   stdin: { contents: `import React from 'react';
-    import {renderToStaticMarkup} from 'react-dom/server';
+    import {createRoot} from 'react-dom/client';
     import {ProjectCard} from './frontend/src/components/ProjectCard';
     const project = {projectId:'P123',title:'Test Project',projectType:'App',token:'',owner:'GABC',collaborators:[],locked:false,totalDistributed:'0',distributionRound:1,balance:'1500'};
-    export const html = renderToStaticMarkup(<main style={{padding:32,display:'grid',gap:24}}>
+    createRoot(document.getElementById('app')).render(<main style={{padding:32,display:'grid',gap:24}}>
       <button id="before">Before cards</button>
       <section id="full"><ProjectCard project={project} onSelect={()=>{}} /></section>
       <section id="compact"><ProjectCard project={project} onSelect={()=>{}} userEarnings="25" /></section>
       <section id="readonly"><ProjectCard project={project} /></section>
     </main>);`, resolveDir: root, loader: 'tsx' },
-  bundle: true, platform: 'node', format: 'cjs', outfile: '.validation/fixture.cjs',
+  bundle: true, platform: 'browser', format: 'iife', write: false,
   jsx: 'automatic', alias: { '@': path.join(root, 'frontend/src') },
 });
-const { html } = createRequire(import.meta.url)('./fixture.cjs');
 const cssFile = path.join(root, 'frontend/src/app/globals.css');
 const { css } = await postcss([tailwind({base: path.join(root,'frontend')})]).process(await fs.readFile(cssFile,'utf8'), {from: cssFile});
-const document = `<style>${css}</style>${html}`;
+const document = `<style>${css}</style><div id="app"></div>`;
+async function mount(page) {
+  await page.setContent(document);
+  await page.addScriptTag({content:bundle.outputFiles[0].text});
+  await page.locator("#full button").waitFor();
+}
 const bg = el => el.evaluate(e => getComputedStyle(e).backgroundColor);
 for (const [name, engine] of Object.entries({chromium, firefox, webkit})) {
   const browser = await engine.launch();
   const page = await browser.newPage({viewport:{width:1000,height:900}});
-  await page.setContent(document);
+  await mount(page);
   for (const id of ['full','compact']) {
     const card = page.locator(`#${id} button`);
     await page.mouse.move(0,0);
@@ -70,7 +74,7 @@ for (const [name, engine] of Object.entries({chromium, firefox, webkit})) {
   await page.locator('#full button').focus();
   await page.screenshot({path:`.validation/${name}-focus.png`,fullPage:true});
   const touch = await browser.newContext({hasTouch:true,viewport:{width:390,height:844}});
-  const mobile = await touch.newPage(); await mobile.setContent(document);
+  const mobile = await touch.newPage(); await mount(mobile);
   assert.equal(await mobile.evaluate(()=>matchMedia('(hover: hover) and (pointer: fine)').matches),false);
   const touchCard=mobile.locator('#full button'); const normal=await bg(touchCard);
   // Mobile engines can retain native :active briefly after touchend.
