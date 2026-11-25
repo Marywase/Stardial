@@ -1,0 +1,58 @@
+name: Issue 70 validation
+on:
+  push:
+    branches: [validation/70-card-states-20261125]
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test -w frontend -- src/components/__tests__/ProjectCard.test.tsx src/components/projects/ProjectsList.test.tsx
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: node .validation/card-checks.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: card-screenshots
+          path: .validation/*.png
+  frontend:
+    strategy:
+      fail-fast: false
+      matrix:
+        revision: [fix, baseline]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_CONTRACT_ID: CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ matrix.revision == 'baseline' && '3b07ddefe9c53755240a7cebd999df9904211f42' || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - name: i18n
+        continue-on-error: true
+        run: npm run check:i18n -w frontend
+      - name: Lint
+        continue-on-error: true
+        run: npm run lint -w frontend
+      - name: Tests
+        continue-on-error: true
+        run: timeout 240 npm run test -w frontend -- --maxWorkers=2
+      - name: Build
+        continue-on-error: true
+        run: npm run build -w frontend
