@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { build } from "esbuild";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
-import { chromium, firefox, webkit } from "playwright";
+const { chromium, firefox, webkit } = createRequire("/tmp/card-browser/package.json")("playwright");
 
 const root = process.cwd();
 await build({
